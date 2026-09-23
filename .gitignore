@@ -8,3 +8,5 @@ prisma/dev.db
 prisma/dev.db-journal
 prisma/migrations/dev.db*
 .env.local
+.shots/profile*/
+tsconfig.tsbuildinfo
