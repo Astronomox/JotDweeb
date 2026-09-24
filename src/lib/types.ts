@@ -7,10 +7,24 @@ export type Entry = {
   wordCount: number;
   createdAt: string;
   updatedAt: string;
+  /** Saved on this device but not yet in the database. */
+  pending?: boolean;
 };
 
 export const MOODS = ["smile", "happy", "neutral", "sad", "heart"] as const;
 export type Mood = (typeof MOODS)[number];
+
+export const MOOD_LABELS: Record<Mood, string> = {
+  smile: "Content",
+  happy: "Joyful",
+  neutral: "Even",
+  sad: "Low",
+  heart: "Loved",
+};
+
+export function moodLabel(mood: string): string {
+  return MOOD_LABELS[mood as Mood] ?? MOOD_LABELS.smile;
+}
 
 export const PROMPTS = [
   { label: "Free write", seed: "What's on my mind right now is" },
