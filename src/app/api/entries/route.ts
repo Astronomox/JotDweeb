@@ -19,8 +19,14 @@ export async function POST(req: Request) {
   }
 
   const content: string = body.content;
+  // Entries written offline keep the date they were written.
+  const createdAt =
+    typeof body.createdAt === "string" && !Number.isNaN(Date.parse(body.createdAt))
+      ? new Date(body.createdAt)
+      : undefined;
   const entry = await prisma.journalEntry.create({
     data: {
+      createdAt,
       content,
       title: body.title?.trim() || deriveTitle(content),
       mood: typeof body.mood === "string" ? body.mood : "smile",
