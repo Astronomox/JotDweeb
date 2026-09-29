@@ -1,21 +1,27 @@
 # Clay Journal
 
-A full-stack journaling app in a warm clay-brown take on Claude's own look. Serif "voice" typeface for writing, sans for the chrome, soft claymorphism surfaces, and a generative SVG backdrop.
+A full-stack journaling app in the Classical style: Cormorant Garamond headings over Lora body text, hairline rules, and a single gold accent. A calendar-led sidebar sits beside a wide writing surface; narrow screens get a bottom tab bar.
 
 ## Stack
 
 - Next.js 14 (App Router) + React 18 + TypeScript
 - Prisma ORM with SQLite (zero external services)
-- Tailwind CSS with a custom clay theme
+- Tailwind CSS with the Classical design tokens
+- lucide-react icons, self-hosted fonts via @fontsource
 - pnpm
 
 ## Features
 
 - Write entries with prompt seeds (Free write, Gratitude, Reflect, Intentions)
 - Live word count
-- Mood tagging (cycles through five hand-drawn SVG faces)
+- Mood tagging with five hand-drawn SVG faces
 - Entries persist to a real database via REST API
-- List, read, and delete past entries
+- Read view with older/newer navigation, edit, and delete with confirmation
+- Calendar with streak, monthly page and word counts
+- Search by word and mood, with highlighted matches
+- Draft kept on the device across reloads; ⌘/Ctrl+Enter saves
+- Entries mirrored to localStorage: instant load, offline saves that sync when the API is back
+- Live WebGL fireball that grows with your streak
 - Auto-derived titles from the first line
 
 ## Getting started
@@ -63,16 +69,26 @@ src/
     api/entries/route.ts        list + create
     api/entries/[id]/route.ts   get + update + delete
     layout.tsx                  fonts + root shell
-    page.tsx                    editor + list wiring
+    page.tsx                    mounts JournalApp (client only)
     globals.css
   components/
-    Editor.tsx                  writing surface
-    EntryList.tsx               past entries
+    JournalApp.tsx              state, data loading, view routing
+    Sidebar.tsx                 brand, nav, streak, mini calendar, recent pages
+    TabBar.tsx                  bottom tabs on narrow screens
+    Editor.tsx                  Write view
+    ReadView.tsx                Read view
+    CalendarView.tsx            month grid + stats
+    SearchView.tsx              word + mood search
+    EntryList.tsx               Pages tab (narrow screens)
+    Welcome.tsx                 empty state with prompt cards
+    ConfirmDialog.tsx           delete confirmation
+    Flame.tsx                   WebGL streak fireball
     MoodIcon.tsx                SVG mood faces
-    ClayArt.tsx                 background art
   lib/
     prisma.ts                   db client singleton
     types.ts                    shared types + helpers
+    journal.ts                  calendar, streak and grouping helpers
+    store.ts                    localStorage mirror + offline sync
 prisma/
   schema.prisma                 JournalEntry model
 ```
