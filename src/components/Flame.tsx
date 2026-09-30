@@ -7,9 +7,10 @@ attribute vec2 aPos;
 void main() { gl_Position = vec4(aPos, 0.0, 1.0); }
 `;
 
-// Procedural fireball: fbm turbulence in polar space streams outward from a
-// white-hot core through gold and orange to an ember rim, with a flickering
-// corona. Output is premultiplied alpha so it composites over the paper.
+// Pixel-art fireball after the fbref references: a round base with flame
+// tongues licking upward, four flat colour bands (red rim, orange-red, orange,
+// yellow core sitting low), stray ember pixels rising above, and a stepped
+// flicker like a sprite. Everything is snapped to a uGrid x uGrid pixel grid.
 const FRAG = `
 #ifdef GL_FRAGMENT_PRECISION_HIGH
 precision highp float;
@@ -19,6 +20,7 @@ precision mediump float;
 uniform vec2 uRes;
 uniform float uTime;
 uniform float uIntensity;
+uniform float uGrid;
 
 float hash(vec2 p) {
   p = fract(p * vec2(123.34, 456.21));
@@ -40,7 +42,7 @@ float noise(vec2 p) {
 float fbm(vec2 p) {
   float v = 0.0;
   float a = 0.5;
-  for (int i = 0; i < 6; i++) {
+  for (int i = 0; i < 4; i++) {
     v += a * noise(p);
     p = p * 2.03 + vec2(1.7, 9.2);
     a *= 0.5;
@@ -49,43 +51,59 @@ float fbm(vec2 p) {
 }
 
 void main() {
-  // Centred, aspect-correct coordinates in [-1, 1].
-  vec2 p = (gl_FragCoord.xy * 2.0 - uRes) / min(uRes.x, uRes.y);
-  float r = length(p);
-  float a = atan(p.y, p.x);
-  float t = uTime;
+  // Snap to the pixel grid, then work in cell-centre coordinates in [-1, 1].
+  vec2 cell = floor(gl_FragCoord.xy / uRes * uGrid);
+  vec2 q = (cell + 0.5) / uGrid * 2.0 - 1.0;
+  // Sprite-style flicker: the fire advances in discrete frames.
+  float t = floor(uTime * 9.0) / 9.0;
 
-  // Seamless angular coordinate: sample noise on a circle so there is no seam at +-PI.
-  vec2 ring = vec2(cos(a), sin(a));
-  float outward = r * 2.2 - t * 0.9;
-  float n1 = fbm(ring * 2.2 + vec2(outward, t * 0.15));
-  float n2 = fbm(ring * 4.5 + vec2(outward * 1.8 + 3.0, -t * 0.4));
+  float R = mix(0.5, 0.8, uIntensity);                  // radius of the round base
+  float cy = -0.9 + R;                                  // base sits on the bottom edge
+  float H = mix(0.4, 0.8, uIntensity) * (0.97 - cy);    // leaves headroom for embers
+  float dy = q.y - cy;
+  float h = clamp(dy / H, 0.0, 1.0);
 
-  float radius = mix(0.52, 0.8, uIntensity);
-  // Turbulent edge: flame tongues lick past the rim.
-  float edge = radius + (n1 - 0.5) * 0.42 + (n2 - 0.5) * 0.18;
-  float body = 1.0 - smoothstep(edge - 0.3, edge, r);
+  float heat;
+  if (dy < 0.0) {
+    heat = 1.0 - length(vec2(q.x, dy)) / R;             // round bottom
+  } else {
+    // Broad body that tapers slowly, like the references.
+    float halfWidth = R * pow(1.0 - h, 0.55) + 0.001;
+    heat = min(1.0 - abs(q.x) / halfWidth, 1.0 - h * 0.7);
+  }
+  // Separate tongues: each column flickers to its own height.
+  float tongue = noise(vec2(q.x * 4.2, t * 1.6));
+  heat += (tongue - 0.5) * 1.5 * h;
+  // Churn so the bands break into ragged pixel edges.
+  float n = fbm(vec2(q.x * 3.0, q.y * 2.0 - t * 2.4));
+  heat += (n - 0.5) * (0.3 + 0.5 * h);
+  // Keep the yellow core low in the flame, as in the references.
+  heat -= 0.2 * h;
 
-  // Surface churn inside the ball.
-  float churn = fbm(p * 3.2 + vec2(t * 0.35, -t * 0.55));
-  float heat = body * (0.65 + 0.55 * churn);
-  heat += (1.0 - smoothstep(0.0, radius * 0.75, r)) * 0.55; // hot core
-  heat = clamp(heat - n2 * 0.18 * r, 0.0, 1.0);
+  vec3 red = vec3(0.91, 0.16, 0.08);
+  vec3 orangeRed = vec3(1.0, 0.36, 0.0);
+  vec3 orange = vec3(1.0, 0.6, 0.0);
+  vec3 yellow = vec3(1.0, 0.9, 0.1);
 
-  vec3 ember = vec3(0.48, 0.10, 0.03);
-  vec3 orange = vec3(0.93, 0.40, 0.08);
-  vec3 gold = vec3(1.00, 0.74, 0.28);
-  vec3 core = vec3(1.00, 0.96, 0.84);
-  vec3 col = mix(ember, orange, smoothstep(0.0, 0.38, heat));
-  col = mix(col, gold, smoothstep(0.38, 0.7, heat));
-  col = mix(col, core, smoothstep(0.78, 1.0, heat) * (0.5 + 0.5 * uIntensity));
+  vec3 col = red;
+  float alpha = step(0.02, heat);
+  col = mix(col, orangeRed, step(0.18, heat));
+  col = mix(col, orange, step(0.4, heat));
+  col = mix(col, yellow, step(0.7, heat));
 
-  // Soft corona glow beyond the rim.
-  float glow = exp(-6.0 * max(r - radius * 0.9, 0.0)) * 0.35 * (0.6 + 0.4 * n1);
-  float alpha = max(smoothstep(0.03, 0.3, heat), glow * (1.0 - body));
-  // Fade to nothing inside the inscribed circle so the square canvas never shows.
-  alpha *= 1.0 - smoothstep(0.82, 0.98, r);
-  col = mix(orange, col, smoothstep(0.0, 0.3, heat));
+  // Ember pixels drifting up from the flame tip, one per chosen column.
+  if (alpha < 0.5) {
+    float lane = hash(vec2(cell.x, 3.7));
+    float yStart = cy + H * 0.95;
+    float travel = 1.0 - yStart;
+    float ey = yStart + fract(lane * 5.3 + t * 0.7) * travel;
+    float eCell = floor((ey + 1.0) * 0.5 * uGrid);
+    if (lane > 0.55 && abs(q.x) < R * 0.6 && cell.y == eCell && uIntensity > 0.3) {
+      col = red;
+      alpha = 1.0;
+    }
+  }
+
   gl_FragColor = vec4(col * alpha, alpha);
 }
 `;
@@ -108,7 +126,7 @@ function compile(gl: WebGLRenderingContext, type: number, src: string) {
 }
 
 /**
- * A live WebGL fireball. `intensity` (0–1) grows the fire; a cold streak
+ * A live pixel-art WebGL fireball. `intensity` (0–1) grows the fire; a cold streak
  * renders as a small ember. Pauses when off screen and holds still for
  * reduced motion.
  */
@@ -179,6 +197,7 @@ export function Flame({
     const uRes = gl.getUniformLocation(prog, "uRes");
     const uTime = gl.getUniformLocation(prog, "uTime");
     const uIntensity = gl.getUniformLocation(prog, "uIntensity");
+    const uGrid = gl.getUniformLocation(prog, "uGrid");
 
     const maxDim = (gl.getParameter(gl.MAX_VIEWPORT_DIMS) as Int32Array)[0] || 4096;
     const px = Math.min(
@@ -189,6 +208,8 @@ export function Flame({
     canvas.height = px;
     gl.viewport(0, 0, px, px);
     gl.uniform2f(uRes, px, px);
+    // Chunky pixels at every size: about one sprite pixel per 3.5 CSS px.
+    gl.uniform1f(uGrid, Math.max(10, Math.min(16, Math.round(size / 3.5))));
     gl.clearColor(0, 0, 0, 0);
 
     const reduced = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
@@ -238,7 +259,7 @@ export function Flame({
     : { "aria-hidden": true };
 
   if (failed) {
-    // No WebGL: a soft painted fireball rather than a vector icon.
+    // No WebGL: the same four flat bands, as a static round flame.
     return (
       <span
         {...a11y}
@@ -247,7 +268,7 @@ export function Flame({
           width: size,
           height: size,
           background:
-            "radial-gradient(circle at 50% 50%, #fff5d6 0%, #ffbd47 30%, #e8661a 55%, rgba(122,26,8,0) 72%)",
+            "radial-gradient(circle at 50% 62%, #ffe61a 0 18%, #ff9900 18% 28%, #ff5c00 28% 37%, #e8291a 37% 45%, transparent 45%)",
           opacity: 0.4 + 0.6 * intensity,
         }}
       />
