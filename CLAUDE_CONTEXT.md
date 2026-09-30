@@ -10,7 +10,7 @@ Last updated: 2026-09-30 (fireball + localStorage)
 
 ## Intentional deviations from the handoff
 - Fonts are self-hosted with `@fontsource/*` instead of `next/font/google`, so dev never waits on Google Fonts.
-- `Flame.tsx` adds a WebGL streak fireball (sidebar 56px, mobile top bar 18px, calendar stats 32px). It isn't in the spec. It renders supersampled at 4× device pixels, capped at the GPU's MAX_VIEWPORT_DIMS. Each mount creates its own canvas and releases the context on unmount (`WEBGL_lose_context`) so contexts never leak. It falls back to a CSS radial gradient without WebGL.
+- `Flame.tsx` adds a pixel-art WebGL streak fireball after `fbref1.jpg`/`fbref2.jpg` (sidebar 56px, mobile top bar 18px, calendar stats 32px). It isn't in the spec. The shader snaps to a 10–16 cell grid and draws a round base with tongues, four flat bands (red, orange-red, orange, yellow core), a 9 fps stepped flicker, and ember pixels above; intensity follows the streak. It renders supersampled at 4× device pixels, capped at MAX_VIEWPORT_DIMS. Each mount creates its own canvas and releases the context on unmount. Without WebGL it falls back to a banded CSS radial gradient.
 - The Write footer hint is hidden below the `sm` breakpoint to keep the mobile footer on one line.
 
 ## Storage
@@ -26,6 +26,7 @@ Last updated: 2026-09-30 (fireball + localStorage)
 ## Verification
 - `npx tsc --noEmit` and `next build` pass.
 - Headless Chrome check (desktop 1440×900, mobile 390×844): every view, draft survives edit and reload, empty-save error, prompt seed, ⌘/Ctrl+Enter save, Esc closes dialog, delete, search highlight, no horizontal overflow, no console errors.
+- `.shots/fireball.mjs [port]` screenshots the fireball at all three sizes.
 - `.shots/verify-store.mjs` (needs the dev server on port 3200) checks fireball canvas size, no context loss after 25 view switches, localStorage mirror, offline save, offline reload, and sync on reconnect. It cleans up its test entry.
 - No ESLint config exists, so `next build` skips linting.
 - Don't run two `next dev` servers in this folder: they share `.next` and corrupt each other's webpack cache (500s with "__webpack_modules__[moduleId] is not a function").
